@@ -9,19 +9,37 @@ BUILD_LABEL="${BUILD_LABEL:-mac_arm64}"
 FFMPEG_REF="${FFMPEG_REF:-n8.1}"
 SAFE_REF="${FFMPEG_REF//\//-}"
 ARTIFACT_DIR="${DIST_DIR}/ffmpeg-audio-${BUILD_LABEL}-${SAFE_REF}"
+FORMULA_PREFIXES=(lame opus libogg libvorbis)
 
 join_csv() {
   tr '\n' ' ' | xargs | tr ' ' ','
 }
 
+formula_prefix() {
+  brew --prefix "$1"
+}
+
 build_pkg_config_path() {
-  local brew_prefix
+  local brew_prefix formula
   brew_prefix="$(brew --prefix)"
-  printf '%s\n' \
-    "${brew_prefix}/lib/pkgconfig" \
-    "${brew_prefix}/opt/lame/lib/pkgconfig" \
-    "${brew_prefix}/opt/opus/lib/pkgconfig" \
-    "${brew_prefix}/opt/libvorbis/lib/pkgconfig"
+  printf '%s\n' "${brew_prefix}/lib/pkgconfig"
+  for formula in opus libogg libvorbis; do
+    printf '%s\n' "$(formula_prefix "${formula}")/lib/pkgconfig"
+  done
+}
+
+build_extra_cflags() {
+  local formula
+  for formula in "${FORMULA_PREFIXES[@]}"; do
+    printf '%s\n' "-I$(formula_prefix "${formula}")/include"
+  done | xargs
+}
+
+build_extra_ldflags() {
+  local formula
+  for formula in "${FORMULA_PREFIXES[@]}"; do
+    printf '%s\n' "-L$(formula_prefix "${formula}")/lib"
+  done | xargs
 }
 
 write_metadata() {
@@ -56,6 +74,8 @@ mkdir -p "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
 
 export PKG_CONFIG_PATH
 PKG_CONFIG_PATH="$(build_pkg_config_path | paste -sd: -)"
+EXTRA_CFLAGS="$(build_extra_cflags)"
+EXTRA_LDFLAGS="$(build_extra_ldflags)"
 
 AUDIO_DEMUXERS="$(
   cat <<'EOF' | join_csv
@@ -163,6 +183,8 @@ CONFIGURE_ARGS=(
   --target-os=darwin
   --cc=clang
   --pkg-config-flags=--static
+  --extra-cflags="${EXTRA_CFLAGS}"
+  --extra-ldflags="${EXTRA_LDFLAGS}"
   --disable-doc
   --disable-debug
   --enable-small
