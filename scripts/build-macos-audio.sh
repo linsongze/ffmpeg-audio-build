@@ -5,41 +5,34 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FFMPEG_DIR="${ROOT_DIR}/ffmpeg"
 OUTPUT_DIR="${ROOT_DIR}/out"
 DIST_DIR="${ROOT_DIR}/dist"
+LOCAL_PREFIX="${ROOT_DIR}/local"
+BUILD_DIR="${ROOT_DIR}/build"
+DOWNLOAD_DIR="${ROOT_DIR}/downloads"
 BUILD_LABEL="${BUILD_LABEL:-mac_arm64}"
 FFMPEG_REF="${FFMPEG_REF:-n8.1}"
 SAFE_REF="${FFMPEG_REF//\//-}"
 ARTIFACT_DIR="${DIST_DIR}/ffmpeg-audio-${BUILD_LABEL}-${SAFE_REF}"
-FORMULA_PREFIXES=(lame opus libogg libvorbis)
+MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+BASE_CFLAGS="-O2 -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+BASE_CPPFLAGS="-I${LOCAL_PREFIX}/include"
+BASE_LDFLAGS="-L${LOCAL_PREFIX}/lib -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+
+source "${ROOT_DIR}/scripts/build-macos-audio-deps.sh"
 
 join_csv() {
   tr '\n' ' ' | xargs | tr ' ' ','
 }
 
-formula_prefix() {
-  brew --prefix "$1"
-}
-
 build_pkg_config_path() {
-  local brew_prefix formula
-  brew_prefix="$(brew --prefix)"
-  printf '%s\n' "${brew_prefix}/lib/pkgconfig"
-  for formula in opus libogg libvorbis; do
-    printf '%s\n' "$(formula_prefix "${formula}")/lib/pkgconfig"
-  done
+  printf '%s\n' "${LOCAL_PREFIX}/lib/pkgconfig"
 }
 
 build_extra_cflags() {
-  local formula
-  for formula in "${FORMULA_PREFIXES[@]}"; do
-    printf '%s\n' "-I$(formula_prefix "${formula}")/include"
-  done | xargs
+  printf '%s' "${BASE_CPPFLAGS} ${BASE_CFLAGS}"
 }
 
 build_extra_ldflags() {
-  local formula
-  for formula in "${FORMULA_PREFIXES[@]}"; do
-    printf '%s\n' "-L$(formula_prefix "${formula}")/lib"
-  done | xargs
+  printf '%s' "${BASE_LDFLAGS}"
 }
 
 write_metadata() {
@@ -48,10 +41,27 @@ write_metadata() {
     echo "build_label=${BUILD_LABEL}"
     echo "runner_arch=$(uname -m)"
     echo "runner_os=$(uname -s)"
+    echo "macos_deployment_target=${MACOSX_DEPLOYMENT_TARGET}"
     echo "build_time_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > "${ARTIFACT_DIR}/BUILD_INFO.txt"
 
   printf '%s\n' "${CONFIGURE_ARGS[@]}" > "${ARTIFACT_DIR}/CONFIGURE_ARGS.txt"
+}
+
+assert_no_non_system_dylibs() {
+  local binary_name dylib_lines
+  binary_name="$1"
+  dylib_lines="$(
+    otool -L "${OUTPUT_DIR}/bin/${binary_name}" \
+      | tail -n +2 \
+      | awk '{print $1}' \
+      | grep -Ev '^(/usr/lib/|/System/Library/)' || true
+  )"
+  if [ -n "${dylib_lines}" ]; then
+    echo "${binary_name} still depends on non-system dylibs:" >&2
+    echo "${dylib_lines}" >&2
+    exit 1
+  fi
 }
 
 write_silence_wav() {
@@ -108,8 +118,12 @@ mkdir -p "${DIST_DIR}"
 rm -rf "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
 mkdir -p "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
 
+prepare_static_audio_deps
+
 export PKG_CONFIG_PATH
+export PKG_CONFIG_LIBDIR
 PKG_CONFIG_PATH="$(build_pkg_config_path | paste -sd: -)"
+PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}"
 EXTRA_CFLAGS="$(build_extra_cflags)"
 EXTRA_LDFLAGS="$(build_extra_ldflags)"
 
@@ -240,7 +254,7 @@ CONFIGURE_ARGS=(
   --enable-avformat
   --enable-avfilter
   --enable-swresample
-  --enable-audiotoolbox
+  --disable-audiotoolbox
   --enable-protocol=file
   --enable-protocol=pipe
   --enable-demuxer="${AUDIO_DEMUXERS}"
@@ -256,11 +270,14 @@ CONFIGURE_ARGS=(
 )
 
 cd "${FFMPEG_DIR}"
+export MACOSX_DEPLOYMENT_TARGET
 ./configure "${CONFIGURE_ARGS[@]}"
 make -j"$(sysctl -n hw.ncpu)"
 make install
 
 strip -x "${OUTPUT_DIR}/bin/ffmpeg" "${OUTPUT_DIR}/bin/ffprobe"
+assert_no_non_system_dylibs "ffmpeg"
+assert_no_non_system_dylibs "ffprobe"
 cp "${OUTPUT_DIR}/bin/ffmpeg" "${ARTIFACT_DIR}/ffmpeg"
 cp "${OUTPUT_DIR}/bin/ffprobe" "${ARTIFACT_DIR}/ffprobe"
 

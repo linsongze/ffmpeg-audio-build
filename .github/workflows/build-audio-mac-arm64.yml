@@ -24,6 +24,7 @@ jobs:
     env:
       BUILD_LABEL: ${{ inputs.build_label }}
       FFMPEG_REF: ${{ inputs.ffmpeg_ref }}
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     steps:
       - name: Checkout build repo
         uses: actions/checkout@v4
@@ -37,7 +38,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install build dependencies
-        run: brew install pkg-config lame opus libogg libvorbis
+        run: brew install pkg-config
 
       - name: Compute artifact variables
         id: vars
