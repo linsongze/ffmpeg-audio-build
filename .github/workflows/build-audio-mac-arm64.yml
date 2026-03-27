@@ -1,0 +1,58 @@
+name: build-audio-mac-arm64
+
+on:
+  workflow_dispatch:
+    inputs:
+      ffmpeg_ref:
+        description: FFmpeg git tag / branch / commit
+        required: true
+        default: n8.1
+      build_label:
+        description: artifact label
+        required: true
+        default: mac_arm64
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.build_label }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: read
+    env:
+      BUILD_LABEL: ${{ inputs.build_label }}
+      FFMPEG_REF: ${{ inputs.ffmpeg_ref }}
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Checkout FFmpeg source
+        uses: actions/checkout@v4
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: ${{ env.FFMPEG_REF }}
+          path: ffmpeg
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        run: brew install pkg-config lame opus libvorbis
+
+      - name: Compute artifact variables
+        id: vars
+        shell: bash
+        run: echo "safe_ref=${FFMPEG_REF//\//-}" >> "$GITHUB_OUTPUT"
+
+      - name: Build audio-only ffmpeg and ffprobe
+        run: bash ./scripts/build-macos-audio.sh
+
+      - name: Show binary sizes
+        run: ls -lh dist/*/ffmpeg dist/*/ffprobe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-audio-${{ inputs.build_label }}-${{ steps.vars.outputs.safe_ref }}
+          path: dist/ffmpeg-audio-${{ inputs.build_label }}-${{ steps.vars.outputs.safe_ref }}/
+          if-no-files-found: error
