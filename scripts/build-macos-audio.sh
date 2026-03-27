@@ -54,17 +54,53 @@ write_metadata() {
   printf '%s\n' "${CONFIGURE_ARGS[@]}" > "${ARTIFACT_DIR}/CONFIGURE_ARGS.txt"
 }
 
-smoke_test() {
-  local raw_input wav_output
-  raw_input="${DIST_DIR}/silence.s16le"
-  wav_output="${DIST_DIR}/silence.wav"
+write_silence_wav() {
+  local wav_path sample_rate channels bits_per_sample data_size byte_rate
+  local block_align riff_size
+  wav_path="$1"
+  sample_rate=44100
+  channels=1
+  bits_per_sample=16
+  data_size=$((sample_rate * channels * bits_per_sample / 8))
+  byte_rate=$((sample_rate * channels * bits_per_sample / 8))
+  block_align=$((channels * bits_per_sample / 8))
+  riff_size=$((data_size + 36))
 
-  dd if=/dev/zero of="${raw_input}" bs=88200 count=1 status=none
+  perl -e '
+    my ($path, $riff_size, $sample_rate, $byte_rate, $block_align, $bits_per_sample, $data_size) = @ARGV;
+    open my $fh, ">", $path or die "open $path failed: $!";
+    binmode $fh;
+    print $fh pack(
+      "a4Va4a4VvvVVvva4V",
+      "RIFF",
+      $riff_size,
+      "WAVE",
+      "fmt ",
+      16,
+      1,
+      1,
+      $sample_rate,
+      $byte_rate,
+      $block_align,
+      $bits_per_sample,
+      "data",
+      $data_size
+    );
+    print $fh "\0" x $data_size;
+  ' "${wav_path}" "${riff_size}" "${sample_rate}" "${byte_rate}" "${block_align}" "${bits_per_sample}" "${data_size}"
+}
+
+smoke_test() {
+  local wav_input mp3_output
+  wav_input="${DIST_DIR}/silence.wav"
+  mp3_output="${DIST_DIR}/silence.mp3"
+
+  write_silence_wav "${wav_input}"
   "${OUTPUT_DIR}/bin/ffmpeg" -hide_banner -y \
-    -f s16le -ar 44100 -ac 1 -i "${raw_input}" \
-    -c:a pcm_s16le "${wav_output}"
+    -i "${wav_input}" \
+    -c:a libmp3lame -q:a 4 "${mp3_output}"
   "${OUTPUT_DIR}/bin/ffprobe" -hide_banner -v quiet \
-    -print_format json -show_streams -show_format "${wav_output}" \
+    -print_format json -show_streams -show_format "${mp3_output}" \
     > "${DIST_DIR}/silence.ffprobe.json"
 }
 
