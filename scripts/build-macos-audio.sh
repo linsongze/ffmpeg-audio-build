@@ -170,7 +170,6 @@ CONFIGURE_ARGS=(
   --disable-autodetect
   --disable-ffplay
   --disable-avdevice
-  --disable-postproc
   --disable-swscale
   --disable-hwaccels
   --disable-videotoolbox
