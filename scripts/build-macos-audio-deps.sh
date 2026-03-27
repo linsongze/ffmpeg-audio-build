@@ -90,6 +90,23 @@ install_pkgconfig_file() {
   install_include_file "${source_file}" "${LOCAL_PREFIX}/lib/pkgconfig"
 }
 
+write_lame_pkgconfig_file() {
+  mkdir -p "${LOCAL_PREFIX}/lib/pkgconfig"
+  cat > "${LOCAL_PREFIX}/lib/pkgconfig/lame.pc" <<EOF
+prefix=${LOCAL_PREFIX}
+exec_prefix=\${prefix}
+libdir=\${exec_prefix}/lib
+includedir=\${prefix}/include
+
+Name: lame
+Description: LAME MP3 encoder library
+Version: ${LAME_VERSION}
+Libs: -L\${libdir} -lmp3lame
+Libs.private: -lm
+Cflags: -I\${includedir}
+EOF
+}
+
 build_libogg() {
   local source_dir
   source_dir="$(download_and_extract "libogg" "${LIBOGG_URL}" "libogg-${LIBOGG_VERSION}.tar.gz")"
@@ -147,6 +164,7 @@ build_lame() {
     --prefix="${LOCAL_PREFIX}" \
     --disable-shared \
     --enable-static
+  write_lame_pkgconfig_file
 }
 
 assert_static_dep_outputs() {
