@@ -21,6 +21,8 @@ jobs:
     runs-on: macos-15
     permissions:
       contents: read
+    outputs:
+      artifact_name: ffmpeg-audio-${{ inputs.build_label }}-${{ steps.vars.outputs.safe_ref }}
     env:
       BUILD_LABEL: ${{ inputs.build_label }}
       FFMPEG_REF: ${{ inputs.ffmpeg_ref }}
@@ -57,3 +59,93 @@ jobs:
           name: ffmpeg-audio-${{ inputs.build_label }}-${{ steps.vars.outputs.safe_ref }}
           path: dist/ffmpeg-audio-${{ inputs.build_label }}-${{ steps.vars.outputs.safe_ref }}/
           if-no-files-found: error
+
+  validate:
+    needs: build
+    runs-on: macos-15
+    permissions:
+      contents: read
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - name: Download built artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: validate-artifact
+
+      - name: Restore execute permission
+        run: chmod +x validate-artifact/ffmpeg validate-artifact/ffprobe
+
+      - name: Inspect binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          file validate-artifact/ffmpeg validate-artifact/ffprobe
+          for binary in ffmpeg ffprobe; do
+            echo "== ${binary} dylibs =="
+            otool -L "validate-artifact/${binary}"
+            dylib_lines="$(
+              otool -L "validate-artifact/${binary}" \
+                | tail -n +2 \
+                | awk '{print $1}' \
+                | grep -Ev '^(/usr/lib/|/System/Library/)' || true
+            )"
+            if [ -n "${dylib_lines}" ]; then
+              echo "${binary} still depends on non-system dylibs:" >&2
+              echo "${dylib_lines}" >&2
+              exit 1
+            fi
+
+            echo "== ${binary} build version =="
+            build_version_lines="$(otool -l "validate-artifact/${binary}" | grep -A3 'LC_BUILD_VERSION\|LC_VERSION_MIN_MACOSX')"
+            printf '%s\n' "${build_version_lines}"
+            if ! printf '%s\n' "${build_version_lines}" | grep -q "minos ${MACOSX_DEPLOYMENT_TARGET}"; then
+              echo "${binary} does not target macOS ${MACOSX_DEPLOYMENT_TARGET}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Smoke test downloaded binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          perl -e '
+            my ($path) = @ARGV;
+            my $sample_rate = 44100;
+            my $channels = 1;
+            my $bits_per_sample = 16;
+            my $data_size = $sample_rate * $channels * $bits_per_sample / 8;
+            my $byte_rate = $data_size;
+            my $block_align = $channels * $bits_per_sample / 8;
+            my $riff_size = $data_size + 36;
+            open my $fh, ">", $path or die "open $path failed: $!";
+            binmode $fh;
+            print $fh pack(
+              "a4Va4a4VvvVVvva4V",
+              "RIFF",
+              $riff_size,
+              "WAVE",
+              "fmt ",
+              16,
+              1,
+              1,
+              $sample_rate,
+              $byte_rate,
+              $block_align,
+              $bits_per_sample,
+              "data",
+              $data_size
+            );
+            print $fh "\0" x $data_size;
+          ' silence.wav
+
+          ./validate-artifact/ffmpeg -hide_banner -version
+          ./validate-artifact/ffprobe -hide_banner -version
+          ./validate-artifact/ffmpeg -hide_banner -y -i silence.wav -c:a libmp3lame -q:a 4 silence.mp3
+          ./validate-artifact/ffmpeg -hide_banner -y -i silence.wav -c:a aac -b:a 128k silence.m4a
+          ./validate-artifact/ffmpeg -hide_banner -y -i silence.m4a -c:a libmp3lame -q:a 4 roundtrip.mp3
+          ./validate-artifact/ffprobe -hide_banner -show_streams -show_format silence.mp3
+          ./validate-artifact/ffprobe -hide_banner -show_streams -show_format silence.m4a
+          ./validate-artifact/ffprobe -hide_banner -show_streams -show_format roundtrip.mp3
+          ls -lh silence.wav silence.mp3 silence.m4a roundtrip.mp3
