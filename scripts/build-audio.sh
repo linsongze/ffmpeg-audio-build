@@ -18,6 +18,7 @@ BUILD_LABEL="${BUILD_LABEL:-${TARGET_TRIPLE}}"
 FFMPEG_REF="${FFMPEG_REF:-n8.1}"
 SAFE_REF="${FFMPEG_REF//\//-}"
 ARTIFACT_DIR="${DIST_DIR}/ffmpeg-audio-${BUILD_LABEL}-${SAFE_REF}"
+MAKE_ARGS=()
 
 LOCAL_PREFIX="${ROOT_DIR}/local"
 OUTPUT_PREFIX="${OUTPUT_DIR}"
@@ -292,10 +293,26 @@ fi
 
 if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
   disable_windows_ffmpeg_depfile_reload
+  MAKE_ARGS+=(
+    "CCDEP=:"
+    "CXXDEP=:"
+    "ASDEP=:"
+    "HOSTCCDEP=:"
+    "DEPX86ASM=:"
+    "CCDEP_FLAGS="
+    "CXXDEP_FLAGS="
+    "ASDEP_FLAGS="
+    "HOSTCCDEP_FLAGS="
+    "CC_DEPFLAGS="
+    "CXX_DEPFLAGS="
+    "AS_DEPFLAGS="
+    "HOSTCC_DEPFLAGS="
+    "X86ASM_DEPFLAGS="
+  )
 fi
 
-make -j"$(cpu_count)"
-make install
+make -j"$(cpu_count)" "${MAKE_ARGS[@]}"
+make "${MAKE_ARGS[@]}" install
 
 FFMPEG_BINARY="${OUTPUT_DIR}/bin/$(binary_name ffmpeg)"
 FFPROBE_BINARY="${OUTPUT_DIR}/bin/$(binary_name ffprobe)"
