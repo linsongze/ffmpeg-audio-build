@@ -101,12 +101,13 @@ validate_linux_binary() {
 }
 
 validate_windows_binary() {
-  local binary_path binary_name_local dependents_output imported_dlls
+  local binary_path binary_name_local native_binary_path dependents_output imported_dlls
   binary_path="$1"
   binary_name_local="$(basename "${binary_path}")"
+  native_binary_path="$(cygpath -m "${binary_path}")"
 
   echo "== ${binary_name_local} dependents =="
-  dependents_output="$(dumpbin.exe /DEPENDENTS "${binary_path}" | tr -d '\r')"
+  dependents_output="$(dumpbin.exe /DEPENDENTS "${native_binary_path}" | tr -d '\r')"
   printf '%s\n' "${dependents_output}"
 
   imported_dlls="$(
