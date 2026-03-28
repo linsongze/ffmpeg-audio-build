@@ -200,7 +200,7 @@ fi
 
 if [ "${TARGET_OS_FAMILY}" = "windows" ] && [ "${TARGET_FFMPEG_ARCH}" = "aarch64" ]; then
   CONFIGURE_ARGS+=(
-    --disable-inline-asm
+    --disable-asm
   )
 fi
 

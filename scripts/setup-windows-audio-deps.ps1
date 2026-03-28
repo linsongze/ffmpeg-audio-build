@@ -8,6 +8,22 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Ensure-LibAlias {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Source,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Alias
+  )
+
+  if (-not (Test-Path $Source)) {
+    throw "required library not found: $Source"
+  }
+
+  Copy-Item -Force $Source $Alias
+}
+
 if (-not (Get-Command make.exe -ErrorAction SilentlyContinue)) {
   choco install make -y --no-progress
 }
@@ -27,6 +43,12 @@ if (-not (Test-Path $VcpkgRoot)) {
   "pkgconf:$VcpkgTriplet"
 
 $installedDir = Join-Path $VcpkgRoot "installed\$VcpkgTriplet"
+$libDir = Join-Path $installedDir 'lib'
+
+Ensure-LibAlias `
+  -Source (Join-Path $libDir 'libmp3lame-static.lib') `
+  -Alias (Join-Path $libDir 'mp3lame.lib')
+
 $pkgconfCandidates = @(
   (Join-Path $installedDir 'tools\pkgconf\pkgconf.exe'),
   (Join-Path $installedDir 'tools\pkgconf\pkg-config.exe'),
