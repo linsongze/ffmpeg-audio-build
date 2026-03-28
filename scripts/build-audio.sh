@@ -209,7 +209,6 @@ CONFIGURE_ARGS=(
   --extra-ldflags="${EXTRA_LDFLAGS}"
   --disable-doc
   --disable-debug
-  --enable-small
   --disable-network
   --disable-autodetect
   --disable-ffplay
@@ -243,6 +242,10 @@ if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
   CONFIGURE_ARGS+=(
     --pkg-config="${PKGCONF_EXE}"
     --toolchain=msvc
+  )
+else
+  CONFIGURE_ARGS+=(
+    --enable-small
   )
 fi
 
