@@ -22,7 +22,6 @@ ARTIFACT_DIR="${DIST_DIR}/ffmpeg-audio-${BUILD_LABEL}-${SAFE_REF}"
 LOCAL_PREFIX="${ROOT_DIR}/local"
 OUTPUT_PREFIX="${OUTPUT_DIR}"
 MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
-BASE_EXTRALIBS=""
 
 case "${TARGET_OS_FAMILY}" in
   darwin)
@@ -45,7 +44,6 @@ case "${TARGET_OS_FAMILY}" in
     BASE_CFLAGS="/O2 /MT"
     BASE_CPPFLAGS="-I${LOCAL_PREFIX_NATIVE}/include"
     BASE_LDFLAGS="-L${LOCAL_PREFIX_NATIVE}/lib"
-    BASE_EXTRALIBS="mpghip.lib"
     ;;
   *)
     echo "unsupported TARGET_OS_FAMILY: ${TARGET_OS_FAMILY}" >&2
@@ -181,12 +179,6 @@ CONFIGURE_ARGS=(
   --enable-libvorbis
 )
 
-if [ -n "${BASE_EXTRALIBS}" ]; then
-  CONFIGURE_ARGS+=(
-    --extra-libs="${BASE_EXTRALIBS}"
-  )
-fi
-
 if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
   CONFIGURE_ARGS+=(
     --toolchain=msvc
@@ -221,7 +213,7 @@ fi
 if ! ./configure "${CONFIGURE_ARGS[@]}"; then
   if [ -f ffbuild/config.log ]; then
     echo "===== ffbuild/config.log =====" >&2
-    sed -n '1,240p' ffbuild/config.log >&2 || true
+    tail -n 240 ffbuild/config.log >&2 || true
   fi
   exit 1
 fi

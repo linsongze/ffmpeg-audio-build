@@ -24,6 +24,24 @@ function Ensure-LibAlias {
   Copy-Item -Force $Source $Alias
 }
 
+function New-CombinedStaticLib {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Output,
+
+    [Parameter(Mandatory = $true)]
+    [string[]]$Inputs
+  )
+
+  foreach ($inputLib in $Inputs) {
+    if (-not (Test-Path $inputLib)) {
+      throw "required library not found: $inputLib"
+    }
+  }
+
+  & lib.exe /nologo /OUT:$Output $Inputs
+}
+
 if (-not (Get-Command make.exe -ErrorAction SilentlyContinue)) {
   choco install make -y --no-progress
 }
@@ -44,16 +62,22 @@ if (-not (Test-Path $VcpkgRoot)) {
 
 $installedDir = Join-Path $VcpkgRoot "installed\$VcpkgTriplet"
 $libDir = Join-Path $installedDir 'lib'
-
-Ensure-LibAlias `
-  -Source (Join-Path $libDir 'libmp3lame-static.lib') `
-  -Alias (Join-Path $libDir 'mp3lame.lib')
+$mp3LameStaticLib = Join-Path $libDir 'libmp3lame-static.lib'
+$mp3LameCompatLib = Join-Path $libDir 'mp3lame.lib'
 
 $mpghipStaticLib = Join-Path $libDir 'libmpghip-static.lib'
 if (Test-Path $mpghipStaticLib) {
+  New-CombinedStaticLib `
+    -Output $mp3LameCompatLib `
+    -Inputs @($mp3LameStaticLib, $mpghipStaticLib)
+
   Ensure-LibAlias `
     -Source $mpghipStaticLib `
     -Alias (Join-Path $libDir 'mpghip.lib')
+} else {
+  Ensure-LibAlias `
+    -Source $mp3LameStaticLib `
+    -Alias $mp3LameCompatLib
 }
 
 $pkgconfCandidates = @(
