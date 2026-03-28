@@ -1,4 +1,4 @@
-name: aarch64-apple-darwin
+name: aarch64-unknown-linux-gnu
 
 on:
   workflow_dispatch:
@@ -13,9 +13,8 @@ jobs:
     uses: ./.github/workflows/reusable-build-audio-target.yml
     with:
       ffmpeg_ref: ${{ inputs.ffmpeg_ref }}
-      target_triple: aarch64-apple-darwin
-      target_os_family: darwin
-      target_ffmpeg_arch: arm64
-      target_ffmpeg_os: darwin
-      runner_label: macos-15
-      macos_deployment_target: "11.0"
+      target_triple: aarch64-unknown-linux-gnu
+      target_os_family: linux
+      target_ffmpeg_arch: aarch64
+      target_ffmpeg_os: linux
+      runner_label: ubuntu-24.04-arm

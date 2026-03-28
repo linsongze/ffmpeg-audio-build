@@ -1,0 +1,22 @@
+name: aarch64-pc-windows-msvc
+
+on:
+  workflow_dispatch:
+    inputs:
+      ffmpeg_ref:
+        description: FFmpeg git tag / branch / commit
+        required: true
+        default: n8.1
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-build-audio-target.yml
+    with:
+      ffmpeg_ref: ${{ inputs.ffmpeg_ref }}
+      target_triple: aarch64-pc-windows-msvc
+      target_os_family: windows
+      target_ffmpeg_arch: aarch64
+      target_ffmpeg_os: win64
+      runner_label: windows-11-arm
+      windows_vcpkg_triplet: arm64-windows-static
+      windows_msvc_arch: arm64

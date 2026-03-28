@@ -1,0 +1,138 @@
+name: reusable-build-audio-target
+
+on:
+  workflow_call:
+    inputs:
+      ffmpeg_ref:
+        required: true
+        type: string
+      target_triple:
+        required: true
+        type: string
+      target_os_family:
+        required: true
+        type: string
+      target_ffmpeg_arch:
+        required: true
+        type: string
+      target_ffmpeg_os:
+        required: true
+        type: string
+      runner_label:
+        required: true
+        type: string
+      macos_deployment_target:
+        required: false
+        default: ""
+        type: string
+      windows_vcpkg_triplet:
+        required: false
+        default: ""
+        type: string
+      windows_msvc_arch:
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.target_triple }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner_label }}
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ffmpeg-audio-${{ inputs.target_triple }}-${{ steps.vars.outputs.safe_ref }}
+    env:
+      TARGET_TRIPLE: ${{ inputs.target_triple }}
+      TARGET_OS_FAMILY: ${{ inputs.target_os_family }}
+      TARGET_FFMPEG_ARCH: ${{ inputs.target_ffmpeg_arch }}
+      TARGET_FFMPEG_OS: ${{ inputs.target_ffmpeg_os }}
+      BUILD_LABEL: ${{ inputs.target_triple }}
+      FFMPEG_REF: ${{ inputs.ffmpeg_ref }}
+      MACOSX_DEPLOYMENT_TARGET: ${{ inputs.macos_deployment_target }}
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Checkout FFmpeg source
+        uses: actions/checkout@v4
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: ${{ env.FFMPEG_REF }}
+          path: ffmpeg
+          fetch-depth: 1
+
+      - name: Install macOS prerequisites
+        if: ${{ inputs.target_os_family == 'darwin' }}
+        run: brew install pkg-config
+
+      - name: Install Linux prerequisites
+        if: ${{ inputs.target_os_family == 'linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config
+
+      - name: Export MSVC environment
+        if: ${{ inputs.target_os_family == 'windows' }}
+        shell: pwsh
+        run: ./scripts/export-msvc-env.ps1 -TargetArch '${{ inputs.windows_msvc_arch }}'
+
+      - name: Prepare Windows static dependencies
+        if: ${{ inputs.target_os_family == 'windows' }}
+        shell: pwsh
+        run: ./scripts/setup-windows-audio-deps.ps1 -VcpkgRoot "$env:RUNNER_TEMP\vcpkg" -VcpkgTriplet '${{ inputs.windows_vcpkg_triplet }}'
+
+      - name: Compute artifact variables
+        id: vars
+        shell: pwsh
+        run: |
+          $safeRef = "${env:FFMPEG_REF}".Replace('/', '-')
+          "safe_ref=$safeRef" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Build audio binaries
+        shell: bash
+        run: bash ./scripts/build-audio.sh
+
+      - name: Show packaged files
+        shell: bash
+        run: find dist -maxdepth 2 -type f | sort | xargs ls -lh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-audio-${{ inputs.target_triple }}-${{ steps.vars.outputs.safe_ref }}
+          path: dist/ffmpeg-audio-${{ inputs.target_triple }}-${{ steps.vars.outputs.safe_ref }}/
+          if-no-files-found: error
+
+  validate:
+    needs: build
+    runs-on: ${{ inputs.runner_label }}
+    permissions:
+      contents: read
+    env:
+      TARGET_TRIPLE: ${{ inputs.target_triple }}
+      TARGET_OS_FAMILY: ${{ inputs.target_os_family }}
+      TARGET_FFMPEG_ARCH: ${{ inputs.target_ffmpeg_arch }}
+      TARGET_FFMPEG_OS: ${{ inputs.target_ffmpeg_os }}
+      MACOSX_DEPLOYMENT_TARGET: ${{ inputs.macos_deployment_target }}
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Export MSVC environment
+        if: ${{ inputs.target_os_family == 'windows' }}
+        shell: pwsh
+        run: ./scripts/export-msvc-env.ps1 -TargetArch '${{ inputs.windows_msvc_arch }}'
+
+      - name: Download built artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: validate-artifact
+
+      - name: Validate artifact
+        shell: bash
+        run: bash ./scripts/validate-artifact.sh "$(pwd)/validate-artifact"
