@@ -49,6 +49,13 @@ Ensure-LibAlias `
   -Source (Join-Path $libDir 'libmp3lame-static.lib') `
   -Alias (Join-Path $libDir 'mp3lame.lib')
 
+$mpghipStaticLib = Join-Path $libDir 'libmpghip-static.lib'
+if (Test-Path $mpghipStaticLib) {
+  Ensure-LibAlias `
+    -Source $mpghipStaticLib `
+    -Alias (Join-Path $libDir 'mpghip.lib')
+}
+
 $pkgconfCandidates = @(
   (Join-Path $installedDir 'tools\pkgconf\pkgconf.exe'),
   (Join-Path $installedDir 'tools\pkgconf\pkg-config.exe'),
