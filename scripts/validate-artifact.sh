@@ -102,25 +102,41 @@ validate_linux_binary() {
 
 validate_windows_binary() {
   local binary_path binary_name_local native_binary_path dependents_output imported_dlls
-  local dumpbin_status
+  local inspect_status
   binary_path="$1"
   binary_name_local="$(basename "${binary_path}")"
   native_binary_path="$(cygpath -w "${binary_path}")"
 
   echo "== ${binary_name_local} dependents =="
-  set +e
-  dependents_output="$(dumpbin.exe /DEPENDENTS "${native_binary_path}" 2>&1 | tr -d '\r')"
-  dumpbin_status=$?
-  set -e
+  if command -v llvm-objdump >/dev/null 2>&1; then
+    set +e
+    dependents_output="$(llvm-objdump -p "${binary_path}" 2>&1 | tr -d '\r')"
+    inspect_status=$?
+    set -e
+  else
+    set +e
+    dependents_output="$(dumpbin.exe /DEPENDENTS "${native_binary_path}" 2>&1 | tr -d '\r')"
+    inspect_status=$?
+    set -e
+  fi
   printf '%s\n' "${dependents_output}"
-  if [ "${dumpbin_status}" -ne 0 ]; then
-    echo "dumpbin.exe failed for ${native_binary_path}" >&2
-    exit "${dumpbin_status}"
+  if [ "${inspect_status}" -ne 0 ]; then
+    echo "failed to inspect dependents for ${binary_name_local}" >&2
+    exit "${inspect_status}"
   fi
 
   imported_dlls="$(
     printf '%s\n' "${dependents_output}" \
-      | awk '/^[[:space:]]+[A-Za-z0-9._-]+\.dll$/ { gsub(/^[[:space:]]+/, "", $0); print $0 }'
+      | awk '
+          /^[[:space:]]+[A-Za-z0-9._-]+\.dll$/ {
+            gsub(/^[[:space:]]+/, "", $0)
+            print $0
+          }
+          /DLL Name:[[:space:]]+[A-Za-z0-9._-]+\.dll/ {
+            sub(/^.*DLL Name:[[:space:]]+/, "", $0)
+            print $0
+          }
+        '
   )"
 
   if printf '%s\n' "${imported_dlls}" | grep -Eiq '^(av(codec|format|filter|util)|sw(resample|scale)|postproc|lib(mp3lame|vorbis|vorbisenc|vorbisfile|ogg|opus)|mp3lame|vorbis|ogg|opus).*\.dll$'; then
