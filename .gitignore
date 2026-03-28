@@ -1,6 +1,6 @@
-build/
-dist/
-downloads/
-ffmpeg/
-local/
-out/
+/build/
+/dist/
+/downloads/
+/ffmpeg/
+/local/
+/out/

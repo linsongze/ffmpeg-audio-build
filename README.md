@@ -1,8 +1,10 @@
 # ffmpeg-audio-build
 
-用于构建音频专用版 `ffmpeg` / `ffprobe` 的 GitHub Actions 仓库。
+[中文说明](README_zh.md)
 
-当前目标：
+This repository builds audio-focused `ffmpeg` and `ffprobe` binaries with GitHub Actions.
+
+Current targets:
 
 - `aarch64-apple-darwin`
 - `x86_64-apple-darwin`
@@ -11,14 +13,14 @@
 - `x86_64-pc-windows-msvc`
 - `aarch64-pc-windows-msvc`
 
-目标特性：
+Project goals:
 
-- 仅保留音频相关能力
-- 第三方音频依赖静态链接
-- 构建产物运行时不依赖第三方动态库
-- 每个目标在对应平台 runner 上自动校验
+- Keep only audio-related functionality
+- Statically link third-party audio dependencies
+- Avoid third-party codec runtime libraries in the final artifacts
+- Validate every target on a matching platform runner
 
-当前 workflows：
+Current workflows:
 
 - `.github/workflows/build-audio-mac-arm64.yml`
 - `.github/workflows/build-audio-mac-x86_64.yml`
@@ -27,39 +29,39 @@
 - `.github/workflows/build-audio-windows-x86_64.yml`
 - `.github/workflows/build-audio-windows-aarch64.yml`
 
-内部复用 workflow：
+Reusable workflow:
 
 - `.github/workflows/reusable-build-audio-target.yml`
 
-触发方式：
+How to trigger a build:
 
-1. 打开 GitHub Actions
-2. 选择对应目标 triple 的 workflow
-3. 手动触发 `workflow_dispatch`
-4. 默认构建 `FFmpeg n8.1`
+1. Open GitHub Actions.
+2. Choose the workflow for the target triple you want.
+3. Run it with `workflow_dispatch`.
+4. The default FFmpeg ref is `n8.1`.
 
-产物内容：
+Artifact contents:
 
-- `ffmpeg` 或 `ffmpeg.exe`
-- `ffprobe` 或 `ffprobe.exe`
+- `ffmpeg` or `ffmpeg.exe`
+- `ffprobe` or `ffprobe.exe`
 - `BUILD_INFO.txt`
 - `CONFIGURE_ARGS.txt`
 
-校验内容：
+Validation steps:
 
-- 检查二进制架构和最低系统版本
-- 检查是否仍然依赖第三方动态库
-- 检查 `ffmpeg` / `ffprobe` 是否能正常启动
-- 验证音频转码：
+- Verify binary architecture and minimum OS version
+- Check that no third-party runtime libraries remain
+- Verify that `ffmpeg` and `ffprobe` start correctly
+- Verify audio transcoding:
   `wav -> mp3`
-  `wav -> m4a`
-  `m4a -> mp3`
-- 验证音频截取：
-  `wav -> clip.wav`，并校验裁剪后时长
+  `wav -> aac`
+  `aac -> mp3`
+- Verify audio clipping:
+  `wav -> clip.wav`, then confirm the clipped duration
 
-说明：
+Notes:
 
-- macOS / Linux 目标会先从源码静态编译 `lame / libogg / libvorbis / opus`，再构建 `ffmpeg / ffprobe`。
-- Windows 目标会使用 MSVC 工具链和静态依赖前缀来构建，校验运行时不引入第三方 DLL。
-- 目标是保持“音频转码 + 音频截取”可用，而不是构建通用多媒体全功能版 FFmpeg。
-- `m4a` 输入依赖 `mov` demuxer，`m4a` 输出使用 `ipod` muxer。
+- macOS and Linux targets build `lame`, `libogg`, `libvorbis`, and `opus` from source as static dependencies before building `ffmpeg` and `ffprobe`.
+- Windows targets use the MSVC toolchain plus a static dependency prefix, and validation checks that no third-party DLLs are required at runtime.
+- The goal is to keep audio transcoding and audio clipping working, not to produce a full general-purpose multimedia FFmpeg build.
+- The current smoke tests use AAC in ADTS format instead of `m4a/ipod`.
