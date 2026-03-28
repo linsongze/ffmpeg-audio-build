@@ -36,7 +36,7 @@ EOF
   AUDIO_MUXERS="$(
     cat <<'EOF' | join_csv
 ac3 adts aiff alaw amr au caf codec2 codec2raw eac3 flac g722 g723_1
-g726 g726le gsm ilbc ipod ircam latm mlp mp2 mp3 mulaw oga ogg opus rm
+g726 g726le gsm ilbc ircam latm mlp mp2 mp3 mulaw oga ogg opus rm
 s16be s16le s24be s24le s32be s32le s8 sox spdif truehd
 tta voc w64 wav wv
 EOF
@@ -206,7 +206,7 @@ assert_codec_name() {
 }
 
 run_smoke_tests() {
-  local ffmpeg_bin ffprobe_bin work_dir wav_input mp3_output m4a_output
+  local ffmpeg_bin ffprobe_bin work_dir wav_input mp3_output aac_output
   local clip_output roundtrip_output
 
   ffmpeg_bin="$1"
@@ -214,9 +214,9 @@ run_smoke_tests() {
   work_dir="$3"
   wav_input="${work_dir}/silence.wav"
   mp3_output="${work_dir}/silence.mp3"
-  m4a_output="${work_dir}/silence.m4a"
+  aac_output="${work_dir}/silence.aac"
   clip_output="${work_dir}/clip.wav"
-  roundtrip_output="${work_dir}/from-m4a.mp3"
+  roundtrip_output="${work_dir}/from-aac.mp3"
 
   mkdir -p "${work_dir}"
   write_silence_wav "${wav_input}" 2
@@ -230,7 +230,7 @@ run_smoke_tests() {
 
   "${ffmpeg_bin}" -hide_banner -y \
     -i "${wav_input}" \
-    -c:a aac -b:a 128k "${m4a_output}"
+    -c:a aac -b:a 128k "${aac_output}"
 
   "${ffmpeg_bin}" -hide_banner -y \
     -ss 0.50 -t 0.75 \
@@ -238,16 +238,16 @@ run_smoke_tests() {
     -c:a pcm_s16le "${clip_output}"
 
   "${ffmpeg_bin}" -hide_banner -y \
-    -i "${m4a_output}" \
+    -i "${aac_output}" \
     -c:a libmp3lame -q:a 4 "${roundtrip_output}"
 
   assert_codec_name "${ffprobe_bin}" "${mp3_output}" "mp3"
-  assert_codec_name "${ffprobe_bin}" "${m4a_output}" "aac"
+  assert_codec_name "${ffprobe_bin}" "${aac_output}" "aac"
   assert_codec_name "${ffprobe_bin}" "${clip_output}" "pcm_s16le"
   assert_codec_name "${ffprobe_bin}" "${roundtrip_output}" "mp3"
 
   assert_duration_between "${ffprobe_bin}" "${mp3_output}" 1.90 2.10
-  assert_duration_between "${ffprobe_bin}" "${m4a_output}" 1.90 2.10
+  assert_duration_between "${ffprobe_bin}" "${aac_output}" 1.90 2.10
   assert_duration_between "${ffprobe_bin}" "${clip_output}" 0.70 0.80
   assert_duration_between "${ffprobe_bin}" "${roundtrip_output}" 1.90 2.15
 }
