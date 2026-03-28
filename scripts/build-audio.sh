@@ -169,6 +169,15 @@ strip_binary() {
   esac
 }
 
+fix_windows_dep_tracking() {
+  local make_fragment
+
+  for make_fragment in ffbuild/config.mak ffbuild/common.mak; do
+    [ -f "${make_fragment}" ] || continue
+    perl -0pi -e 's@gsub\(/\\/, "/"\)@gsub(/\\\\/, "/")@g' "${make_fragment}"
+  done
+}
+
 mkdir -p "${DIST_DIR}"
 rm -rf "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
 mkdir -p "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
@@ -274,6 +283,11 @@ if ! ./configure "${CONFIGURE_ARGS[@]}"; then
   fi
   exit 1
 fi
+
+if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
+  fix_windows_dep_tracking
+fi
+
 make -j"$(cpu_count)"
 make install
 
