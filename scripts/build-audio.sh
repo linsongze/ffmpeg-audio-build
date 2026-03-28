@@ -190,8 +190,7 @@ PKG_CONFIG_PATH="$(build_pkg_config_path | paste -sd"$(pkg_config_separator)" -)
 PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}"
 
 if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
-  export PKG_CONFIG="${PKGCONF_EXE}"
-  echo "using Windows pkg-config wrapper: ${PKG_CONFIG}"
+  echo "using Windows pkg-config wrapper: ${PKGCONF_EXE}"
 fi
 
 EXTRA_CFLAGS="$(build_extra_cflags)"
@@ -238,6 +237,7 @@ CONFIGURE_ARGS=(
 
 if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
   CONFIGURE_ARGS+=(
+    --pkg-config="${PKGCONF_EXE}"
     --toolchain=msvc
   )
 fi
