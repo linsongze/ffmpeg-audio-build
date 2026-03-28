@@ -169,13 +169,8 @@ strip_binary() {
   esac
 }
 
-fix_windows_dep_tracking() {
-  local make_fragment
-
-  for make_fragment in ffbuild/config.mak ffbuild/common.mak; do
-    [ -f "${make_fragment}" ] || continue
-    perl -0pi -e 's@gsub\(/\\/, "/"\)@gsub(/\\\\/, "/")@g' "${make_fragment}"
-  done
+apply_windows_ffmpeg_patches() {
+  patch -N -p0 < "${ROOT_DIR}/scripts/patches/ffmpeg-windows-msvc-depcmd.patch"
 }
 
 mkdir -p "${DIST_DIR}"
@@ -276,16 +271,16 @@ if [ "${TARGET_OS_FAMILY}" = "darwin" ]; then
   export MACOSX_DEPLOYMENT_TARGET
 fi
 
+if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
+  apply_windows_ffmpeg_patches
+fi
+
 if ! ./configure "${CONFIGURE_ARGS[@]}"; then
   if [ -f ffbuild/config.log ]; then
     echo "===== ffbuild/config.log =====" >&2
     tail -n 240 ffbuild/config.log >&2 || true
   fi
   exit 1
-fi
-
-if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
-  fix_windows_dep_tracking
 fi
 
 make -j"$(cpu_count)"
