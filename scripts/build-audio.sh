@@ -178,6 +178,22 @@ disable_windows_ffmpeg_depfile_reload() {
   perl -0pi -e 's{^-include \$\(wildcard .*?\)\n}{# Disabled on Windows CI: MSVC-generated depfiles are unreliable under GNU make.\n}m' ffbuild/common.mak
 }
 
+run_make() {
+  local status
+
+  # macOS GitHub runners still ship Bash 3.2, where expanding an empty array
+  # under `set -u` raises an unbound-variable error.
+  set +u
+  if make "$@" "${MAKE_ARGS[@]}"; then
+    status=0
+  else
+    status=$?
+  fi
+  set -u
+
+  return "${status}"
+}
+
 mkdir -p "${DIST_DIR}"
 rm -rf "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
 mkdir -p "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
@@ -311,8 +327,8 @@ if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
   )
 fi
 
-make -j"$(cpu_count)" "${MAKE_ARGS[@]}"
-make "${MAKE_ARGS[@]}" install
+run_make -j"$(cpu_count)"
+run_make install
 
 FFMPEG_BINARY="${OUTPUT_DIR}/bin/$(binary_name ffmpeg)"
 FFPROBE_BINARY="${OUTPUT_DIR}/bin/$(binary_name ffprobe)"
