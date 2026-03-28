@@ -43,7 +43,7 @@ case "${TARGET_OS_FAMILY}" in
     OUTPUT_PREFIX="$(cygpath -m "${OUTPUT_DIR}")"
     BASE_CFLAGS="/O2 /MT"
     BASE_CPPFLAGS="-I${LOCAL_PREFIX_NATIVE}/include"
-    BASE_LDFLAGS="-LIBPATH:${LOCAL_PREFIX_NATIVE}/lib"
+    BASE_LDFLAGS="-L${LOCAL_PREFIX_NATIVE}/lib"
     ;;
   *)
     echo "unsupported TARGET_OS_FAMILY: ${TARGET_OS_FAMILY}" >&2
