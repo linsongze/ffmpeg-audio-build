@@ -23,6 +23,62 @@ LOCAL_PREFIX="${ROOT_DIR}/local"
 OUTPUT_PREFIX="${OUTPUT_DIR}"
 MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
 
+normalize_windows_command() {
+  local command_value
+  command_value="$1"
+
+  case "${command_value}" in
+    [A-Za-z]:\\*|[A-Za-z]:/*)
+      cygpath -u "${command_value}"
+      ;;
+    *)
+      printf '%s\n' "${command_value}"
+      ;;
+  esac
+}
+
+write_windows_pkgconf_wrapper() {
+  local resolved_command wrapper_path escaped_command
+  resolved_command="$1"
+  wrapper_path="${BUILD_DIR}/windows-pkgconf.sh"
+  escaped_command="${resolved_command//\'/\'\\\'\'}"
+
+  mkdir -p "${BUILD_DIR}"
+  cat > "${wrapper_path}" <<EOF
+#!/bin/sh
+exec '${escaped_command}' "\$@"
+EOF
+  chmod +x "${wrapper_path}"
+  printf '%s\n' "${wrapper_path}"
+}
+
+resolve_windows_pkgconf() {
+  local preferred_command candidate normalized_candidate
+  preferred_command="$1"
+
+  for candidate in "${preferred_command}" pkg-config.exe pkgconf.exe pkg-config pkgconf; do
+    [ -n "${candidate}" ] || continue
+    normalized_candidate="$(normalize_windows_command "${candidate}")"
+
+    if [[ "${normalized_candidate}" == */* ]]; then
+      [ -e "${normalized_candidate}" ] || continue
+      if "${normalized_candidate}" --version >/dev/null 2>&1; then
+        write_windows_pkgconf_wrapper "${normalized_candidate}"
+        return
+      fi
+      continue
+    fi
+
+    if command -v "${normalized_candidate}" >/dev/null 2>&1 && "${normalized_candidate}" --version >/dev/null 2>&1; then
+      write_windows_pkgconf_wrapper "${normalized_candidate}"
+      return
+    fi
+  done
+
+  echo "unable to locate a working pkg-config command for Windows builds" >&2
+  return 1
+}
+
 case "${TARGET_OS_FAMILY}" in
   darwin)
     BASE_CFLAGS="-O2 -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
@@ -38,7 +94,7 @@ case "${TARGET_OS_FAMILY}" in
     ;;
   windows)
     LOCAL_PREFIX="$(cygpath -u "${WINDOWS_VCPKG_INSTALLED_DIR:?WINDOWS_VCPKG_INSTALLED_DIR is required for Windows builds}")"
-    PKGCONF_EXE="$(cygpath -u "${PKGCONF_EXE:?PKGCONF_EXE is required for Windows builds}")"
+    PKGCONF_EXE="$(resolve_windows_pkgconf "${PKGCONF_EXE:?PKGCONF_EXE is required for Windows builds}")"
     LOCAL_PREFIX_NATIVE="$(cygpath -m "${LOCAL_PREFIX}")"
     OUTPUT_PREFIX="$(cygpath -m "${OUTPUT_DIR}")"
     BASE_CFLAGS="-O2 -MT"
@@ -135,6 +191,7 @@ PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}"
 
 if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
   export PKG_CONFIG="${PKGCONF_EXE}"
+  echo "using Windows pkg-config wrapper: ${PKG_CONFIG}"
 fi
 
 EXTRA_CFLAGS="$(build_extra_cflags)"
