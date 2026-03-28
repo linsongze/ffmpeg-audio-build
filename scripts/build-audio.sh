@@ -173,6 +173,10 @@ apply_windows_ffmpeg_patches() {
   patch --batch --binary -N -p1 < "${ROOT_DIR}/scripts/patches/ffmpeg-windows-msvc-depcmd.patch"
 }
 
+disable_windows_ffmpeg_depfile_reload() {
+  perl -0pi -e 's{^-include \$\(wildcard .*?\)\n}{# Disabled on Windows CI: MSVC-generated depfiles are unreliable under GNU make.\n}m' ffbuild/common.mak
+}
+
 mkdir -p "${DIST_DIR}"
 rm -rf "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
 mkdir -p "${OUTPUT_DIR}" "${ARTIFACT_DIR}"
@@ -284,6 +288,10 @@ if ! ./configure "${CONFIGURE_ARGS[@]}"; then
     tail -n 240 ffbuild/config.log >&2 || true
   fi
   exit 1
+fi
+
+if [ "${TARGET_OS_FAMILY}" = "windows" ]; then
+  disable_windows_ffmpeg_depfile_reload
 fi
 
 make -j"$(cpu_count)"
