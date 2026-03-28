@@ -41,9 +41,9 @@ case "${TARGET_OS_FAMILY}" in
     PKGCONF_EXE="$(cygpath -u "${PKGCONF_EXE:?PKGCONF_EXE is required for Windows builds}")"
     LOCAL_PREFIX_NATIVE="$(cygpath -m "${LOCAL_PREFIX}")"
     OUTPUT_PREFIX="$(cygpath -m "${OUTPUT_DIR}")"
-    BASE_CFLAGS="/O2 /MT"
+    BASE_CFLAGS="-O2 -MT"
     BASE_CPPFLAGS="-I${LOCAL_PREFIX_NATIVE}/include"
-    BASE_LDFLAGS="-L${LOCAL_PREFIX_NATIVE}/lib"
+    BASE_LDFLAGS="-libpath:${LOCAL_PREFIX_NATIVE}/lib"
     ;;
   *)
     echo "unsupported TARGET_OS_FAMILY: ${TARGET_OS_FAMILY}" >&2
