@@ -170,7 +170,7 @@ strip_binary() {
 }
 
 apply_windows_ffmpeg_patches() {
-  patch -N -p0 < "${ROOT_DIR}/scripts/patches/ffmpeg-windows-msvc-depcmd.patch"
+  patch --batch --binary -N -p1 < "${ROOT_DIR}/scripts/patches/ffmpeg-windows-msvc-depcmd.patch"
 }
 
 mkdir -p "${DIST_DIR}"
